@@ -20,7 +20,6 @@ class VecDB:
     def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]]):
         #Features Vectors
         embedings_rows=[]
-        self.db_size=len(rows)
         for row in rows:
             _, embed = row["id"], row["embed"]
             embedings_rows.append(embed)
