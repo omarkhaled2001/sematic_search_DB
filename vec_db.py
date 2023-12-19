@@ -33,8 +33,10 @@ class VecDB:
     def retrive(self , query: Annotated[List[float], 5], top_k = 10):
         # Approx. Worst Ram Usage for 20M data Points = 289.001 MB = 20M *(0.03% * (70features * 4Bytes + 4Bytes + 2* (2 score tuple * 4Bytes ))) + 10K * ( 70features * 4Bytes + 2* (2 score tuple * 4Bytes )+ (2 index tuple * 4Bytes ) ) = 303.04 * 10^6 Bytes        
         # Loading centroids do use it in calculating cosine simularity with query vector
+        ###################################centriods Allocate
         centriods = np.load("./" + self._file_path + "/Cluster_Centriods.npy",allow_pickle=True)
         #print("centriods Dimention is : ", len(centriods)," centriod of ",len(centriods[0])," features.")
+        ##########################################################scores Allocate
         scores = []
         for id in range(len(centriods)):
             # Access the current centroid using its index
@@ -42,7 +44,13 @@ class VecDB:
             #calculating cosine simularity
             score = self._cal_score(query, centriod)
             scores.append((score, id))
-        sorted_scores= sorted(scores, reverse=True)            
+        del centriods  
+        ####################################centriods DeAllocate
+
+        ################################################################sorted_scores Allocate
+        sorted_scores= sorted(scores, reverse=True)
+        del scores  
+        ########################################################## scores DeAllocate        
         # here we assume that if two rows have the same score, return the lowest ID
         first_index = sorted_scores[0][1] #First closest Centriod index
         ########################TODO : comment this code
@@ -57,7 +65,10 @@ class VecDB:
         third_index = sorted_scores[2][1] #Third closest Centriod index
         ########################TODO : comment this code
         #print ('Third closest Centriod is : ', third_index)
-        ########################
+        del sorted_scores
+        ################################################################sorted_scores DeAllocate
+
+        ####################################cluster_indexes Allocate
         # Loading centroids ids points use it in calculating cosine simularity with query vector                
         cluster_indexes = np.load("./" + self._file_path + "/Cluster_Indexes.npy",allow_pickle=True)
         
@@ -72,7 +83,10 @@ class VecDB:
         third_cluster_start_index = cluster_indexes[third_index][0]
         third_cluster_end_index = cluster_indexes[third_index][1]
         #print("third_cluster_start_index is : ",third_cluster_start_index," & third_cluster_end_index ",third_cluster_end_index)
-        
+        del cluster_indexes
+        ####################################cluster_indexes Allocate
+
+        ####################################indexes Allocate
         # Loading chosen points indexes use it in calculating cosine simularity with query vector        
         indexes =[]
         data_points_indexes = np.lib.format.open_memmap("./" + self._file_path + "/data_points_indexes"+".npy", mode='r', dtype='int') 
@@ -90,7 +104,8 @@ class VecDB:
         #print("indexes Dimention is : ", len(indexes)," index")
         
         # Loading chosen points use it in calculating cosine simularity with query vector
-        
+
+        ####################################rows Allocate
         rows =[]
         data_points = np.lib.format.open_memmap("./" + self._file_path + "/data_points"+".npy", mode='r', dtype='float32' , shape=(len(indexes),70)) 
 
@@ -105,14 +120,22 @@ class VecDB:
         
         #print("sorted rows Data Dimention is : ", len(rows)," point of ",len(rows[0])," features.")
         #print("sorted rows Data (First 10 row)(First 3 feature) = ", [row[:3] for row in rows[:10]])
-
+        ############################################################final_scores Allocate
         final_scores = []
         for i in range(len(rows)):
             #calculating cosine simularity
             score = self._cal_score(query, rows[i])
             final_scores.append((score, indexes[i]))
 
+        del rows
+        ####################################rows DeAllocate
+        del indexes
+        ####################################indexes DeAllocate
+        #####################################################################################final_indexes Allocate
         final_indexes = sorted(final_scores  , reverse=True)[:top_k] #closest points
+        del final_scores
+        ############################################################final_scores DeAllocate
+
         ########################TODO : comment this code
         #print ('closest Points_indexes is : ', [s[1] for s in final_indexes])
         #print ('closest Points score is : ', [s[0] for s in final_indexes])
@@ -167,6 +190,7 @@ class VecDB:
             
         batch_begin = 0
         ##Begin of learning Phase
+        ####################################kmeans Allocate
         kmeans = MiniBatchKMeans(n_clusters = n_Clusters, batch_size = batch_Size, n_init=1)
         counter = len(rows)//batch_Size -1 # For Loaping over whole Data 
         
@@ -176,28 +200,55 @@ class VecDB:
             batch_begin+=batch_Size
             counter-=1
             
-        #Compute cluster centers and predict cluster index for each sample.    
+        #Compute cluster centers and predict cluster index for each sample.  
+        #####################################################################labels Allocate  
         labels = kmeans.predict(rows)
+        #Saving Data samples Centiodes for loading it in retrive func.
+        np.save("./" + self._file_path + "/Cluster_Centriods", kmeans.cluster_centers_ )
+        del kmeans
+        ####################################kmeans DeAllocate
+
+        ##############################################################################arranged_data_samples Allocate
         #Rearrange Data samples in List of Centiode each one has it's own points ids.
         arranged_data_samples = [[] for _ in range(n_Clusters)]
+        #############################################################clusters_size Allocate
         #To git size of each Cluster
         clusters_size = [0 for _ in range(n_Clusters)]
         for index in range(len(rows)):
                 arranged_data_samples[labels[index]].append(index)
                 clusters_size[labels[index]] += 1 # increamnt
+        del labels
+        #####################################################################labels DeAllocate        
         #for i in range(n_Clusters):        
             ##print("Cluster [",i,"] : size of points: ", clusters_size[i])
             ##print("Cluster [",i,"] : First 5 points ids: ", arranged_data_samples[i][:5])
 
+        ##############################################################################sorted_data_sample_indexes Allocate
         #ReSort Data samples in List of indexes based on Clusters's index arrange from centiod 0 to #n_Clusters each one has it's own points ids.
         sorted_data_sample_indexes =[]  
+        ##############################################################################sorted_data_sample Allocate
+        #ReSort Data samples in List of vectors<70 features> based on Clusters's index arrange from centiod 0 to #n_Clusters each one has it's own points.
         sorted_data_sample =[]  
         for cluster in arranged_data_samples:
                 for index in cluster:
                     sorted_data_sample.append(rows[index])   #List of Float Embeddings 70 Feature Vectors                     
-                    sorted_data_sample_indexes.append(index) #List of Int IDs      
+                    sorted_data_sample_indexes.append(index) #List of Int IDs
+        del arranged_data_samples
+        ##############################################################################arranged_data_samples DeAllocate
+                    
         #print("First 10 sorted points (First 3 feature): ", [row[:3] for row in sorted_data_sample[:10]])
-        #print("First 10 sorted points ids: ", sorted_data_sample_indexes[:10])                    
+        #print("First 10 sorted points ids: ", sorted_data_sample_indexes[:10])  
+
+        #Saving for loading it in retrive func. 
+        np.save("./" + self._file_path + "/data_points", sorted_data_sample)  
+        del sorted_data_sample
+        ##############################################################################sorted_data_sample DeAllocate
+        #Saving for loading it in retrive func. 
+        np.save("./" + self._file_path + "/data_points_indexes", sorted_data_sample_indexes) 
+        del sorted_data_sample_indexes
+        ##############################################################################sorted_data_sample_indexes DeAllocate
+        
+        ##############################################################################clusters_start_end_indexes Allocate
         clusters_start_end_indexes = [[0,0] for _ in range(n_Clusters)] # To read Embeddings 70 Feature Vectors List
         start_index = 0 #num_elemnts
         end_index = 0 #num_elemnts
@@ -206,15 +257,10 @@ class VecDB:
             end_index = start_index  + clusters_size[i] 
             clusters_start_end_indexes[i] = [start_index,end_index] 
             start_index = end_index
+        del clusters_size
+        #############################################################clusters_size DeAllocate             
         #for i in range(n_Clusters):       
             #print("Cluster [",i,"] : start_index : ",clusters_start_end_indexes[i][0]," & end_index ",clusters_start_end_indexes[i][1])
-                
-        
-        #Saving for loading it in retrive func. 
-        np.save("./" + self._file_path + "/data_points", sorted_data_sample)  
-        #Saving for loading it in retrive func. 
-        np.save("./" + self._file_path + "/data_points_indexes", sorted_data_sample_indexes)         
-        #Saving Data samples Centiodes for loading it in retrive func.
-        np.save("./" + self._file_path + "/Cluster_Centriods", kmeans.cluster_centers_ )
+                        
         #Saving Start & End indexes in each Centiode for loading it in retrive func.
         np.save("./" + self._file_path + "/Cluster_Indexes", clusters_start_end_indexes)
