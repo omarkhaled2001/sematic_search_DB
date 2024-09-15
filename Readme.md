@@ -77,7 +77,7 @@ Instead of matching keywords or filenames, the system converts each image into a
 1. **Clone the Repository**:
 
    ```bash
-   git clone <repository_url>
+   git clone https://github.com/omarkhaled2001/sematic_search_DB.git
    ```
 
 2. **Install Dependencies**:
